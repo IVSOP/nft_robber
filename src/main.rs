@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use log::warn;
 use solana_pubkey::Pubkey;
 
 use crate::{mpl::*, rpc::*, utils::*};
@@ -41,7 +42,9 @@ pub fn check_key_valid(key: &str) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenvy::dotenv().expect("Could not load env");
+    if dotenvy::dotenv().is_err() {
+        warn!("Could not load a .env file");
+    }
     env_logger::init();
 
     let rpc = Rpc::new("http://localhost:8899".into());
@@ -106,7 +109,8 @@ async fn main() -> Result<()> {
                     rent_epoch: account_info_response.rent_epoch,
                 };
 
-                rpc.set_account_info(&collection_key, &set_account_info).await?;
+                rpc.set_account_info(&collection_key, &set_account_info)
+                    .await?;
             } else {
                 anyhow::bail!("NFT account did not exist!");
             }

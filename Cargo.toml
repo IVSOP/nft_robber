@@ -1,5 +1,5 @@
 [package]
-name = "core_nft_robber"
+name = "nft_robber"
 version = "0.1.0"
 edition = "2024"
 
