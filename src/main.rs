@@ -4,10 +4,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use solana_pubkey::Pubkey;
 
-use crate::{
-    mpl::{deser_asset, deser_collection, ser_asset_to_hex, ser_collection_to_hex},
-    rpc::{Rpc, SetAccountInfo},
-};
+use crate::{mpl::*, rpc::*, utils::*};
 
 mod mpl;
 mod rpc;
@@ -58,12 +55,21 @@ async fn main() -> Result<()> {
 
             if let Some(account_info_response) = rpc.get_account_info(&nft_key).await? {
                 // WARN: I assume data is [data, "base64"], and that the format is base64
-                let mut asset_data = deser_asset(&account_info_response.data[0])?;
-                asset_data.owner = Pubkey::from_str(&new_owner)?;
-                let new_data = ser_asset_to_hex(&asset_data)?;
+                // another WARN: the deserialization the metaplex crate does will only deserialize the header
+                // this means that if you just write the header you will be deleting all the other data in the NFT, like plugins
+                let mut asset_data = b64_to_bytes(&account_info_response.data[0])?;
+                let mut asset_header = deser_asset_header(&asset_data)?;
+                asset_header.owner = Pubkey::from_str(&new_owner)?;
+
+                // see the warning above. need to keep the remaining data intact, so just copy the header
+                // the header length does not change when changing the owner etc
+                let new_header_data = ser_asset_header(&asset_header)?;
+                asset_data[..new_header_data.len()].copy_from_slice(&new_header_data);
+
+                let data_string = bytes_to_hex(&asset_data)?;
 
                 let set_account_info = SetAccountInfo {
-                    data: Some(new_data),
+                    data: Some(data_string),
                     executable: account_info_response.executable,
                     lamports: account_info_response.lamports,
                     owner: account_info_response.owner,
@@ -83,13 +89,17 @@ async fn main() -> Result<()> {
             check_key_valid(&new_authority)?;
 
             if let Some(account_info_response) = rpc.get_account_info(&collection_key).await? {
-                // WARN: I assume data is [data, "base64"], and that the format is base64
-                let mut collection_data = deser_collection(&account_info_response.data[0])?;
-                collection_data.update_authority = Pubkey::from_str(&new_authority)?;
-                let new_data = ser_collection_to_hex(&collection_data)?;
+                let mut collection_data = b64_to_bytes(&account_info_response.data[0])?;
+                let mut collection_header = deser_collection_header(&collection_data)?;
+                collection_header.update_authority = Pubkey::from_str(&new_authority)?;
+
+                let new_header_data = ser_collection_header(&collection_header)?;
+                collection_data[..new_header_data.len()].copy_from_slice(&new_header_data);
+
+                let data_string = bytes_to_hex(&collection_data)?;
 
                 let set_account_info = SetAccountInfo {
-                    data: Some(new_data),
+                    data: Some(data_string),
                     executable: account_info_response.executable,
                     lamports: account_info_response.lamports,
                     owner: account_info_response.owner,
