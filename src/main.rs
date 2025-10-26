@@ -5,11 +5,12 @@ use clap::{Parser, Subcommand};
 use log::warn;
 use solana_pubkey::Pubkey;
 
-use crate::{mpl::*, rpc::*, utils::*};
+use crate::{mpl::*, print_plugins::print_asset_info, rpc::*, utils::*};
 
 mod mpl;
 mod rpc;
 mod utils;
+mod print_plugins;
 
 /// Command line parser using `clap`
 #[derive(Parser, Debug)]
@@ -29,6 +30,10 @@ enum Commands {
         collection_key: String,
         new_authority: String,
     },
+    #[command(about = "Print information for a core NFT")]
+    PrintCoreNft {
+        key: String,
+    }
 }
 
 // cursed
@@ -111,6 +116,17 @@ async fn main() -> Result<()> {
 
                 rpc.set_account_info(&collection_key, &set_account_info)
                     .await?;
+            } else {
+                anyhow::bail!("Collection account did not exist!");
+            }
+        },
+        Commands::PrintCoreNft { key } => {
+            check_key_valid(&key)?;
+
+            if let Some(account_info_response) = rpc.get_account_info(&key).await? {
+                // WARN: I assume data is [data, "base64"], and that the format is base64
+                let asset_data = b64_to_bytes(&account_info_response.data[0])?;
+                print_asset_info(&asset_data)?;
             } else {
                 anyhow::bail!("NFT account did not exist!");
             }
