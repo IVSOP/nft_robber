@@ -1,0 +1,35 @@
+use anyhow::Result;
+use mpl_token_metadata::accounts::TokenRecord;
+use spl_token::solana_program::program_pack::Pack;
+
+type AssociatedTokenAccount = spl_token::state::Account;
+
+pub fn deser_ata(bytes: &[u8]) -> Result<AssociatedTokenAccount> {
+    Ok(AssociatedTokenAccount::unpack(bytes)?)
+}
+
+pub fn ser_ata(ata: &AssociatedTokenAccount) -> Result<Vec<u8>> {
+    let mut vec = Vec::with_capacity(AssociatedTokenAccount::get_packed_len());
+    AssociatedTokenAccount::pack(*ata, &mut vec)?;
+    Ok(vec)
+}
+
+pub fn deser_token_record(bytes: &[u8]) -> Result<TokenRecord> {
+    Ok(TokenRecord::safe_deserialize(bytes)?)
+}
+
+pub fn ser_token_record(token_record: &TokenRecord) -> Result<Vec<u8>> {
+    Ok(borsh::to_vec(token_record)?)
+}
+
+pub fn print_ata(bytes: &[u8]) -> Result<()> {
+    let ata = deser_ata(bytes)?;
+    println!("{:#?}", ata);
+    Ok(())
+}
+
+pub fn print_token_record(bytes: &[u8]) -> Result<()> {
+    let ata = deser_token_record(bytes)?;
+    println!("{:#?}", ata);
+    Ok(())
+}

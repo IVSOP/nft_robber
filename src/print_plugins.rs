@@ -1,14 +1,14 @@
+use anyhow::Result;
 use borsh::BorshDeserialize;
 use mpl_core::accounts::{BaseAssetV1, BaseCollectionV1};
 use mpl_core::types::{Key, Plugin};
-use anyhow::Result;
-use mpl_core::{fetch_collection_plugins, fetch_plugins, DataBlob};
+use mpl_core::{DataBlob, fetch_collection_plugins, fetch_plugins};
 
 // WARN: this is extremely inneficient and deserializes the same data over and over again. metaplex crate is not very good but I did not feel like manually deserializing stuff
 
 pub fn print_asset_info(bytes: &[u8]) -> Result<()> {
     let key = Key::from_slice(bytes, 0)?;
-    if ! matches!(key, Key::AssetV1) {
+    if !matches!(key, Key::AssetV1) {
         anyhow::bail!("Is not an asset");
     }
     let asset_header = BaseAssetV1::from_bytes(bytes)?;
@@ -37,7 +37,7 @@ pub fn print_asset_info(bytes: &[u8]) -> Result<()> {
 
 pub fn print_collection_info(bytes: &[u8]) -> Result<()> {
     let key = Key::from_slice(bytes, 0)?;
-    if ! matches!(key, Key::CollectionV1) {
+    if !matches!(key, Key::CollectionV1) {
         anyhow::bail!("Is not a collection");
     }
     let asset_header = BaseCollectionV1::from_bytes(bytes)?;

@@ -1,16 +1,19 @@
 use std::str::FromStr;
 
+use crate::{mpl::*, pnft::{print_ata, print_token_record}, print_plugins::*, rpc::*, utils::*};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use log::warn;
-use solana_pubkey::Pubkey;
-
-use crate::{mpl::*, print_plugins::*, rpc::*, utils::*};
+use mpl_token_metadata::accounts::TokenRecord;
+use solana_address::Address;
+use solana_pubkey::{Pubkey, pubkey};
+use spl_associated_token_account::get_associated_token_address;
 
 mod mpl;
+mod print_plugins;
 mod rpc;
 mod utils;
-mod print_plugins;
+mod pnft;
 
 /// Command line parser using `clap`
 #[derive(Parser, Debug)]
@@ -31,13 +34,11 @@ enum Commands {
         new_authority: String,
     },
     #[command(about = "Print information for a core NFT")]
-    PrintCoreNft {
-        key: String,
-    },
+    PrintCoreNft { key: String },
     #[command(about = "Print information for a core collection")]
-    PrintCoreCollection {
-        key: String,
-    }
+    PrintCoreCollection { key: String },
+    #[command(about = "Print information for a programmable collection")]
+    PrintPNft { mint: String, owner: String },
 }
 
 // cursed
@@ -123,7 +124,7 @@ async fn main() -> Result<()> {
             } else {
                 anyhow::bail!("Collection account did not exist!");
             }
-        },
+        }
         Commands::PrintCoreNft { key } => {
             check_key_valid(&key)?;
 
@@ -134,7 +135,7 @@ async fn main() -> Result<()> {
             } else {
                 anyhow::bail!("NFT account did not exist!");
             }
-        },
+        }
         Commands::PrintCoreCollection { key } => {
             check_key_valid(&key)?;
 
@@ -144,6 +145,38 @@ async fn main() -> Result<()> {
                 print_collection_info(&asset_data)?;
             } else {
                 anyhow::bail!("NFT account did not exist!");
+            }
+        }
+        Commands::PrintPNft { mint, owner } => {
+            check_key_valid(&mint)?;
+            check_key_valid(&owner)?;
+
+            let mint_addr = Address::from_str(&mint)?;
+            let mint_key = Pubkey::new_from_array(mint_addr.to_bytes());
+
+            let owner_addr = Address::from_str(&owner)?;
+
+            let ata_addr = get_associated_token_address(&owner_addr, &mint_addr);
+            let ata_key = Pubkey::new_from_array(ata_addr.to_bytes());
+
+            let token_record_account = TokenRecord::find_pda(&mint_key, &ata_key).0;
+
+            println!("ATA is {}:", ata_addr);
+            if let Some(account_info_response) = rpc.get_account_info(&ata_addr.to_string()).await? {
+                // WARN: I assume data is [data, "base64"], and that the format is base64
+                let ata_data = b64_to_bytes(&account_info_response.data[0])?;
+                print_ata(&ata_data)?;
+            } else {
+                anyhow::bail!("ATA account did not exist!");
+            }
+
+            println!("TRA is {}:", token_record_account);
+            if let Some(account_info_response) = rpc.get_account_info(&token_record_account.to_string()).await? {
+                // WARN: I assume data is [data, "base64"], and that the format is base64
+                let ata_data = b64_to_bytes(&account_info_response.data[0])?;
+                print_token_record(&ata_data)?;
+            } else {
+                anyhow::bail!("ATA account did not exist!");
             }
         }
     }
