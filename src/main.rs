@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
-use crate::{mpl::*, pnft::{print_ata, print_token_record}, print_plugins::*, rpc::*, utils::*};
+use crate::{mpl::*, pnft::{print_ata, print_metadata, print_token_record}, print_plugins::*, rpc::*, utils::*};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use log::warn;
-use mpl_token_metadata::accounts::TokenRecord;
+use mpl_token_metadata::accounts::{Metadata, TokenRecord};
 use solana_address::Address;
-use solana_pubkey::{Pubkey, pubkey};
+use solana_pubkey::Pubkey;
 use spl_associated_token_account::get_associated_token_address;
 
 mod mpl;
@@ -160,6 +160,7 @@ async fn main() -> Result<()> {
             let ata_key = Pubkey::new_from_array(ata_addr.to_bytes());
 
             let token_record_account = TokenRecord::find_pda(&mint_key, &ata_key).0;
+            let metadata_account = Metadata::find_pda(&mint_key).0;
 
             println!("ATA is {}:", ata_addr);
             if let Some(account_info_response) = rpc.get_account_info(&ata_addr.to_string()).await? {
@@ -175,6 +176,15 @@ async fn main() -> Result<()> {
                 // WARN: I assume data is [data, "base64"], and that the format is base64
                 let ata_data = b64_to_bytes(&account_info_response.data[0])?;
                 print_token_record(&ata_data)?;
+            } else {
+                anyhow::bail!("ATA account did not exist!");
+            }
+
+            println!("Metadata is {}:", metadata_account);
+            if let Some(account_info_response) = rpc.get_account_info(&metadata_account.to_string()).await? {
+                // WARN: I assume data is [data, "base64"], and that the format is base64
+                let ata_data = b64_to_bytes(&account_info_response.data[0])?;
+                print_metadata(&ata_data)?;
             } else {
                 anyhow::bail!("ATA account did not exist!");
             }
