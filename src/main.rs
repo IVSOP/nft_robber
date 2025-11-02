@@ -1,6 +1,15 @@
 use std::str::FromStr;
 
-use crate::{mpl::*, pnft::{print_ata, print_metadata, print_token_record}, print_plugins::*, rpc::*, utils::*};
+use crate::{
+    mpl::*,
+    pnft::{
+        deser_ata, deser_token_record, print_ata, print_metadata, print_token_record, ser_ata,
+        ser_token_record,
+    },
+    print_plugins::*,
+    rpc::*,
+    utils::*,
+};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use log::warn;
@@ -8,12 +17,13 @@ use mpl_token_metadata::accounts::{Metadata, TokenRecord};
 use solana_address::Address;
 use solana_pubkey::Pubkey;
 use spl_associated_token_account::get_associated_token_address;
+use spl_token::solana_program::program_option::COption;
 
 mod mpl;
+mod pnft;
 mod print_plugins;
 mod rpc;
 mod utils;
-mod pnft;
 
 /// Command line parser using `clap`
 #[derive(Parser, Debug)]
@@ -39,6 +49,12 @@ enum Commands {
     PrintCoreCollection { key: String },
     #[command(about = "Print information for a programmable collection")]
     PrintPNft { mint: String, owner: String },
+    #[command(about = "Rob a pNFT")]
+    RobPNft {
+        mint: String,
+        old_owner: String,
+        new_owner: String,
+    },
 }
 
 // cursed
@@ -163,7 +179,8 @@ async fn main() -> Result<()> {
             let metadata_account = Metadata::find_pda(&mint_key).0;
 
             println!("ATA is {}:", ata_addr);
-            if let Some(account_info_response) = rpc.get_account_info(&ata_addr.to_string()).await? {
+            if let Some(account_info_response) = rpc.get_account_info(&ata_addr.to_string()).await?
+            {
                 // WARN: I assume data is [data, "base64"], and that the format is base64
                 let ata_data = b64_to_bytes(&account_info_response.data[0])?;
                 print_ata(&ata_data)?;
@@ -172,7 +189,10 @@ async fn main() -> Result<()> {
             }
 
             println!("TRA is {}:", token_record_account);
-            if let Some(account_info_response) = rpc.get_account_info(&token_record_account.to_string()).await? {
+            if let Some(account_info_response) = rpc
+                .get_account_info(&token_record_account.to_string())
+                .await?
+            {
                 // WARN: I assume data is [data, "base64"], and that the format is base64
                 let ata_data = b64_to_bytes(&account_info_response.data[0])?;
                 print_token_record(&ata_data)?;
@@ -181,13 +201,98 @@ async fn main() -> Result<()> {
             }
 
             println!("Metadata is {}:", metadata_account);
-            if let Some(account_info_response) = rpc.get_account_info(&metadata_account.to_string()).await? {
+            if let Some(account_info_response) =
+                rpc.get_account_info(&metadata_account.to_string()).await?
+            {
                 // WARN: I assume data is [data, "base64"], and that the format is base64
                 let ata_data = b64_to_bytes(&account_info_response.data[0])?;
                 print_metadata(&ata_data)?;
             } else {
                 anyhow::bail!("ATA account did not exist!");
             }
+        }
+        Commands::RobPNft {
+            mint,
+            old_owner,
+            new_owner,
+        } => {
+            check_key_valid(&mint)?;
+            check_key_valid(&old_owner)?;
+            check_key_valid(&new_owner)?;
+
+            let mint_addr = Address::from_str(&mint)?;
+            let mint_key = Pubkey::new_from_array(mint_addr.to_bytes());
+
+            let old_owner_addr = Address::from_str(&old_owner)?;
+            let new_owner_addr = Address::from_str(&new_owner)?;
+
+            let old_ata_addr = get_associated_token_address(&old_owner_addr, &mint_addr);
+            let new_ata_addr = get_associated_token_address(&new_owner_addr, &mint_addr);
+            let old_ata_key = Pubkey::new_from_array(old_ata_addr.to_bytes());
+            let new_ata_key = Pubkey::new_from_array(new_ata_addr.to_bytes());
+
+            let old_tra_key = TokenRecord::find_pda(&mint_key, &old_ata_key).0;
+            let new_tra_key = TokenRecord::find_pda(&mint_key, &new_ata_key).0;
+            let new_tra_addr = Address::from_str(&new_tra_key.to_string())?;
+
+            let old_ata_account = rpc
+                .get_account_info(&old_ata_addr.to_string())
+                .await?
+                .expect("old_ata does not exist");
+            let old_tra_account = rpc
+                .get_account_info(&old_tra_key.to_string())
+                .await?
+                .expect("old_tra does not exist");
+
+            println!("Old ATA: {}", old_ata_key);
+            println!("New ATA: {}", new_ata_key);
+            println!("Old TRA: {}", old_tra_key);
+            println!("New TRA: {}", new_tra_key);
+
+            // Close old ATA and TRA
+            println!("Closing old accounts");
+            rpc.close_account(&old_ata_key.to_string()).await?;
+            rpc.close_account(&old_tra_key.to_string()).await?;
+
+            // Create new ones. Everything is cloned except the `owner` and `delegate` field of the ATA
+            println!("Deserializing ATA");
+            let mut ata_info = deser_ata(&b64_to_bytes(&old_ata_account.data[0])?)?;
+            println!("Deserializing TRA");
+            let tra_info = deser_token_record(&b64_to_bytes(&old_tra_account.data[0])?)?;
+
+            ata_info.owner = new_owner_addr;
+            ata_info.delegate = COption::Some(new_tra_addr);
+
+            println!("Serializing ATA");
+            let ata_bytes = ser_ata(&ata_info)?;
+            println!("Serializing TRA");
+            let tra_bytes = ser_token_record(&tra_info)?;
+
+            println!("Setting ATA");
+            rpc.set_account_info(
+                &new_ata_key.to_string(),
+                &SetAccountInfo {
+                    data: Some(bytes_to_hex(&ata_bytes)?),
+                    executable: old_ata_account.executable,
+                    lamports: old_ata_account.lamports,
+                    owner: old_ata_account.owner,
+                    rent_epoch: old_ata_account.rent_epoch,
+                },
+            )
+            .await?;
+
+            println!("Setting TRA");
+            rpc.set_account_info(
+                &new_tra_key.to_string(),
+                &SetAccountInfo {
+                    data: Some(bytes_to_hex(&tra_bytes)?),
+                    executable: old_tra_account.executable,
+                    lamports: old_tra_account.lamports,
+                    owner: old_tra_account.owner,
+                    rent_epoch: old_tra_account.rent_epoch,
+                },
+            )
+            .await?;
         }
     }
 

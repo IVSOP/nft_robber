@@ -136,4 +136,18 @@ impl Rpc {
 
         Ok(())
     }
+
+    pub async fn close_account(&self, pubkey: &str) -> Result<()> {
+        self.set_account_info(
+            pubkey,
+            &SetAccountInfo {
+                data: Some(String::new()), // just set it to None???
+                executable: false,
+                lamports: 0,
+                owner: "11111111111111111111111111111111".into(),
+                rent_epoch: 0,
+            },
+        )
+        .await
+    }
 }

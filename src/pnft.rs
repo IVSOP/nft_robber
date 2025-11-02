@@ -9,7 +9,7 @@ pub fn deser_ata(bytes: &[u8]) -> Result<AssociatedTokenAccount> {
 }
 
 pub fn ser_ata(ata: &AssociatedTokenAccount) -> Result<Vec<u8>> {
-    let mut vec = Vec::with_capacity(AssociatedTokenAccount::get_packed_len());
+    let mut vec = vec![0u8; AssociatedTokenAccount::get_packed_len()];
     AssociatedTokenAccount::pack(*ata, &mut vec)?;
     Ok(vec)
 }
@@ -26,7 +26,7 @@ pub fn deser_metadata(bytes: &[u8]) -> Result<Metadata> {
     Ok(Metadata::safe_deserialize(bytes)?)
 }
 
-pub fn ser_metadata(metadata: &Metadata) -> Result<Vec<u8>> {
+pub fn _ser_metadata(metadata: &Metadata) -> Result<Vec<u8>> {
     Ok(borsh::to_vec(metadata)?)
 }
 
