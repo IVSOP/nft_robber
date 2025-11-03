@@ -13,7 +13,7 @@ use crate::{
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use log::warn;
-use mpl_token_metadata::accounts::{Metadata, TokenRecord};
+use mpl_token_metadata::{accounts::{Metadata, TokenRecord}, types::TokenState};
 use solana_address::Address;
 use solana_pubkey::Pubkey;
 use spl_associated_token_account::get_associated_token_address;
@@ -257,11 +257,16 @@ async fn main() -> Result<()> {
             // Create new ones. Everything is cloned except the `owner` and `delegate` field of the ATA
             println!("Deserializing ATA");
             let mut ata_info = deser_ata(&b64_to_bytes(&old_ata_account.data[0])?)?;
-            println!("Deserializing TRA");
-            let tra_info = deser_token_record(&b64_to_bytes(&old_tra_account.data[0])?)?;
-
             ata_info.owner = new_owner_addr;
-            ata_info.delegate = COption::Some(new_tra_addr);
+            ata_info.delegate = COption::None;
+
+            println!("Deserializing TRA");
+            let mut tra_info = deser_token_record(&b64_to_bytes(&old_tra_account.data[0])?)?;
+            tra_info.state = TokenState::Unlocked;
+            tra_info.rule_set_revision = None;
+            tra_info.delegate = None;
+            tra_info.delegate_role = None;
+            tra_info.locked_transfer = None;
 
             println!("Serializing ATA");
             let ata_bytes = ser_ata(&ata_info)?;
