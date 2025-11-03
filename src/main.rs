@@ -233,7 +233,6 @@ async fn main() -> Result<()> {
 
             let old_tra_key = TokenRecord::find_pda(&mint_key, &old_ata_key).0;
             let new_tra_key = TokenRecord::find_pda(&mint_key, &new_ata_key).0;
-            let new_tra_addr = Address::from_str(&new_tra_key.to_string())?;
 
             let old_ata_account = rpc
                 .get_account_info(&old_ata_addr.to_string())
