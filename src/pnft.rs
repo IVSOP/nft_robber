@@ -71,13 +71,13 @@ pub fn print_ata(bytes: &[u8]) -> Result<()> {
 }
 
 pub fn print_token_record(bytes: &[u8]) -> Result<()> {
-    let ata = deser_token_record(bytes)?;
-    println!("{:#?}", ata);
+    let tra = deser_token_record(bytes)?;
+    println!("{:#?}", tra);
     Ok(())
 }
 
 pub fn print_metadata(bytes: &[u8]) -> Result<()> {
-    let ata = deser_metadata(bytes)?;
-    println!("{:#?}", ata);
+    let meta = deser_metadata(bytes)?;
+    println!("{:#?}", meta);
     Ok(())
 }

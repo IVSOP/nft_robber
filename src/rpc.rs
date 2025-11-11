@@ -124,8 +124,6 @@ impl Rpc {
         // Parse the response as a generic JSON value
         let v: Value = serde_json::from_str(&text)?;
 
-        println!("{}", serde_json::to_string(info)?);
-
         // If it has an error, deserialize it and return it
         if let Some(err) = v.get("error") {
             let rpc_error: RpcError = serde_json::from_value(err.clone())?;
