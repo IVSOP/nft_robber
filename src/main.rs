@@ -13,7 +13,10 @@ use crate::{
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use log::warn;
-use mpl_token_metadata::{accounts::{Metadata, TokenRecord}, types::TokenState};
+use mpl_token_metadata::{
+    accounts::{Metadata, TokenRecord},
+    types::TokenState,
+};
 use solana_address::Address;
 use solana_pubkey::Pubkey;
 use spl_associated_token_account::get_associated_token_address;
@@ -234,6 +237,17 @@ async fn main() -> Result<()> {
             let old_tra_key = TokenRecord::find_pda(&mint_key, &old_ata_key).0;
             let new_tra_key = TokenRecord::find_pda(&mint_key, &new_ata_key).0;
 
+            let new_tra_pda = Pubkey::find_program_address(
+                &[
+                    b"metadata",
+                    mpl_token_metadata::ID.as_array(),
+                    mint_key.as_array(),
+                    b"token_record",
+                    new_ata_key.as_array(),
+                ],
+                &mpl_token_metadata::ID,
+            );
+
             let old_ata_account = rpc
                 .get_account_info(&old_ata_addr.to_string())
                 .await?
@@ -255,13 +269,16 @@ async fn main() -> Result<()> {
 
             // Create new ones. Everything is cloned except the `owner` and `delegate` field of the ATA
             println!("Deserializing ATA");
+            // remove delegation from the ATA and set the owner to the new owner
             let mut ata_info = deser_ata(&b64_to_bytes(&old_ata_account.data[0])?)?;
             ata_info.owner = new_owner_addr;
             ata_info.delegate = COption::None;
 
             println!("Deserializing TRA");
+            // completely unfreeze the pNFT (the ATA remains frozen), and remove delegation
             let mut tra_info = deser_token_record(&b64_to_bytes(&old_tra_account.data[0])?)?;
             tra_info.state = TokenState::Unlocked;
+            tra_info.bump = new_tra_pda.1;
             tra_info.rule_set_revision = None;
             tra_info.delegate = None;
             tra_info.delegate_role = None;
@@ -271,6 +288,9 @@ async fn main() -> Result<()> {
             let ata_bytes = ser_ata(&ata_info)?;
             println!("Serializing TRA");
             let tra_bytes = ser_token_record(&tra_info)?;
+
+            let debug_tra = deser_token_record(&tra_bytes)?;
+            println!("debug: {:#?}", debug_tra);
 
             println!("Setting ATA");
             rpc.set_account_info(

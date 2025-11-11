@@ -124,6 +124,8 @@ impl Rpc {
         // Parse the response as a generic JSON value
         let v: Value = serde_json::from_str(&text)?;
 
+        println!("{}", serde_json::to_string(info)?);
+
         // If it has an error, deserialize it and return it
         if let Some(err) = v.get("error") {
             let rpc_error: RpcError = serde_json::from_value(err.clone())?;
@@ -141,7 +143,7 @@ impl Rpc {
         self.set_account_info(
             pubkey,
             &SetAccountInfo {
-                data: Some(String::new()), // just set it to None???
+                data: Some(String::new()),
                 executable: false,
                 lamports: 0,
                 owner: "11111111111111111111111111111111".into(),
