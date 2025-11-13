@@ -40,7 +40,12 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     #[command(about = "Steal a core nft")]
-    RobCoreNft { nft_key: String, new_owner: String },
+    RobCoreNft {
+        nft_key: String,
+        new_owner: String,
+        #[arg(long)]
+        remove_plugins: bool,
+    },
     #[command(about = "Steal a core collection")]
     RobCoreCollection {
         collection_key: String,
@@ -81,7 +86,11 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::RobCoreNft { nft_key, new_owner } => {
+        Commands::RobCoreNft {
+            nft_key,
+            new_owner,
+            remove_plugins,
+        } => {
             check_key_valid(&nft_key)?;
             check_key_valid(&new_owner)?;
 
@@ -97,6 +106,11 @@ async fn main() -> Result<()> {
                 // the header length does not change when changing the owner etc
                 let new_header_data = ser_asset_header(&asset_header)?;
                 asset_data[..new_header_data.len()].copy_from_slice(&new_header_data);
+                
+                if remove_plugins {
+                    // truncate all bytes after the header, effectively removing plugins
+                    asset_data.truncate(new_header_data.len());
+                }
 
                 let data_string = bytes_to_hex(&asset_data)?;
 

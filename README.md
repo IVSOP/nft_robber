@@ -1,5 +1,9 @@
 This is a utility that leverages surfpool to overwrite the bytes in a core NFT to change its ownership.
 
+# WARNING
+
+For now, robbing a pNFT also means unfreezing it. I plan on putting this behind a flag in the future.
+
 # Help
 
 `cargo run -- -h`

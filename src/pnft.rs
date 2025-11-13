@@ -1,5 +1,8 @@
 use anyhow::Result;
-use mpl_token_metadata::{accounts::{Metadata, TokenRecord}, types::TokenState};
+use mpl_token_metadata::{
+    accounts::{Metadata, TokenRecord},
+    types::TokenState,
+};
 use spl_token::solana_program::program_pack::Pack;
 
 type AssociatedTokenAccount = spl_token::state::Account;
@@ -32,7 +35,7 @@ pub fn ser_token_record(token_record: &TokenRecord) -> Result<Vec<u8>> {
     data_vec[2] = match token_record.state {
         TokenState::Unlocked => 0,
         TokenState::Locked => 1,
-        TokenState::Listed => 2
+        TokenState::Listed => 2,
     };
 
     if token_record.rule_set_revision.is_some() {
